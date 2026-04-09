@@ -1,40 +1,27 @@
 # core/main.py
 import os
 import json
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import chromadb
 from dotenv import load_dotenv
 
 load_dotenv()
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-
-def initialize_model(model_name="gemini-1.5-flash"):
-    """Tenta inicializar o modelo, com fallback para o Flash se o Pro falhar."""
-    try:
-        print(f"[NEXUS_CORE] Tentando inicializar modelo: {model_name}")
-        return genai.GenerativeModel(model_name)
-    except Exception as e:
-        print(f"[NEXUS_CORE] Erro ao carregar {model_name}: {e}")
-        if model_name != "gemini-1.5-flash":
-            print("[NEXUS_CORE] Fazendo fallback para gemini-1.5-flash...")
-            return genai.GenerativeModel("gemini-1.5-flash")
-        raise e
-
-# Inicializamos o modelo (preferência agora é Flash pela velocidade e disponibilidade)
-model = initialize_model("gemini-1.5-flash")
+# Inicializamos o cliente da nova SDK
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 chroma_client = chromadb.PersistentClient(path="./memory/chroma_db")
 collection = chroma_client.get_or_create_collection(name="nexus_memory")
 
 class Nexus:
     def __init__(self):
-        # Iniciamos com instruções de sistema rigorosas
+        # Instruções de sistema agora são passadas na config da requisição ou do chat
         self.instruction = """
         Você é o NEXUS, o motor do 'Olho de Deus'.
         Sua metodologia é baseada no PTES (Penetration Testing Execution Standard).
         
-        Sempre retorne um JSON estruturado:
+        Você deve SEMPRE retornar um JSON que siga este contrato:
         {
           "fase": "RECON | ENUM | VULN_DEV | EXPLOIT | POST",
           "estrategia": "Sua análise detalhada",
@@ -43,16 +30,9 @@ class Nexus:
           "alerta": "Algo crítico encontrado?"
         }
         """
-        try:
-            self.chat = model.start_chat(history=[])
-        except Exception as e:
-            print(f"[NEXUS_CORE] Erro ao iniciar chat: {e}")
-            self.chat = None
+        self.model_id = "gemini-1.5-flash"
 
     def pensar_e_agir(self, user_input, dominio_alvo="desconhecido"):
-        if not self.chat:
-            return {"error": "IA não inicializada corretamente. Verifique sua GEMINI_API_KEY."}
-
         # Consulta memória sobre o alvo ou tecnologias parecidas
         try:
             memoria = collection.query(query_texts=[user_input, dominio_alvo], n_results=3)
@@ -60,19 +40,29 @@ class Nexus:
         except:
             contexto = f"ALVO ATUAL: {dominio_alvo}"
         
-        full_prompt = f"{self.instruction}\n{contexto}\nENTRADA: {user_input}"
+        full_prompt = f"{contexto}\nENTRADA: {user_input}"
         
         try:
-            response = self.chat.send_message(full_prompt)
-            # Tenta parsear o JSON para garantir que o dashboard receba dados limpos
-            return json.loads(response.text.replace('```json', '').replace('```', ''))
+            # Na nova SDK, o suporte a JSON é nativo e garantido por ResponseMimeType
+            response = client.models.generate_content(
+                model=self.model_id,
+                contents=full_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=self.instruction,
+                    response_mime_type="application/json",
+                )
+            )
+            
+            # O retorno já vem sanitizado e pronto para ser parseado
+            return json.loads(response.text)
+            
         except Exception as e:
             return {
                 "fase": "ERRO_SISTEMA",
-                "estrategia": f"Erro na comunicação com a IA: {str(e)}",
+                "estrategia": f"Erro na nova SDK Nexus: {str(e)}",
                 "comando": "N/A",
                 "ferramenta": "N/A",
-                "alerta": "Falha Crítica no Nexus Core",
+                "alerta": "Falha na Camada Neural",
                 "error": True
             }
 

@@ -24,4 +24,4 @@ async def ask_nexus(data: PentestRequest):
 
 @app.get("/status")
 def get_status():
-    return {"status": "Nexus Core Online", "engine": "Gemini 1.5 (Auto-Select)"}
+    return {"status": "Nexus Core Online", "engine": "Google GenAI SDK v1 (Flash)"}
