@@ -73,6 +73,30 @@ class DatabaseManager:
     def __init__(self):
         if not os.path.exists(DB_PATH):
             init_db()
+        else:
+            self.migrate_db()
+
+    def migrate_db(self):
+        """Adiciona colunas faltantes em bancos de dados existentes."""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        colunas_necessarias = [
+            ("os_family", "TEXT"),
+            ("os_version", "TEXT"),
+            ("tech_stack", "TEXT")
+        ]
+        
+        for coluna, tipo in colunas_necessarias:
+            try:
+                cursor.execute(f"ALTER TABLE targets ADD COLUMN {coluna} {tipo}")
+                print(f"[DB_MIGRATE] Coluna {coluna} adicionada com sucesso.")
+            except sqlite3.OperationalError:
+                # Coluna já existe, ignore
+                pass
+        
+        conn.commit()
+        conn.close()
 
     def get_connection(self):
         conn = sqlite3.connect(DB_PATH)
