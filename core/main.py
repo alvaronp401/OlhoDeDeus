@@ -8,53 +8,30 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configuração de Versão de API: Forçamos a 'v1' estável
-http_options = types.HttpOptions(api_version='v1')
+# Cliente com v1 estável (que encontrou o modelo com sucesso)
 client = genai.Client(
     api_key=os.getenv("GEMINI_API_KEY"),
-    http_options=http_options
+    http_options=types.HttpOptions(api_version='v1')
 )
 
 chroma_client = chromadb.PersistentClient(path="./memory/chroma_db")
 collection = chroma_client.get_or_create_collection(name="nexus_memory")
 
+# Instrução do sistema - será injetada diretamente no prompt
+NEXUS_INSTRUCTION = """
+Você é o NEXUS, o motor do 'Olho de Deus'.
+Sua metodologia é baseada no PTES (Penetration Testing Execution Standard).
+
+Responda APENAS com um JSON válido neste formato exato, sem markdown, sem explicações extras:
+{"fase": "RECON", "estrategia": "sua análise", "comando": "comando para kali", "ferramenta": "nome da ferramenta", "alerta": "alertas importantes"}
+
+Os valores possíveis para fase são: RECON, ENUM, VULN_DEV, EXPLOIT, POST
+"""
+
 class Nexus:
     def __init__(self):
-        self.instruction = """
-        Você é o NEXUS, o motor do 'Olho de Deus'.
-        Sua metodologia é baseada no PTES (Penetration Testing Execution Standard).
-        
-        Você deve SEMPRE retornar um JSON que siga este contrato:
-        {
-          "fase": "RECON | ENUM | VULN_DEV | EXPLOIT | POST",
-          "estrategia": "Sua análise detalhada",
-          "comando": "O comando exato para o Kali",
-          "ferramenta": "nmap, ffuf, sqlmap, katana...",
-          "alerta": "Algo crítico encontrado?"
-        }
-        """
-        self.model_id = self.resolve_best_model()
-
-    def resolve_best_model(self):
-        """Testa modelos em ordem de preferência até encontrar um funcional na conta."""
-        print("\n[NEXUS_BOOT] Iniciando Sequência de Resolução de Modelo...")
-        candidates = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-pro"]
-        
-        for model_name in candidates:
-            try:
-                print(f"[NEXUS_BOOT] Testando integridade: {model_name} (v1)...")
-                client.models.generate_content(
-                    model=model_name,
-                    contents="health_check",
-                    config=types.GenerateContentConfig(max_output_tokens=1)
-                )
-                print(f"[NEXUS_BOOT] SUCESSO: Engine vinculada a {model_name}\n")
-                return model_name
-            except Exception as e:
-                print(f"[NEXUS_BOOT] FALHA em {model_name}: {str(e)[:100]}...")
-        
-        print("[NEXUS_BOOT] CRITICAL: Nenhum modelo resolvido. Verifique sua API Key e permissões.\n")
-        return "gemini-1.5-flash" # Fallback otimista
+        self.model_id = "gemini-1.5-flash"
+        print(f"[NEXUS_CORE] Motor inicializado: {self.model_id} (API v1)")
 
     def pensar_e_agir(self, user_input, dominio_alvo="desconhecido"):
         # Consulta memória sobre o alvo
@@ -63,26 +40,29 @@ class Nexus:
             contexto = f"CONTEXTO DE MEMÓRIA: {memoria['documents']}\nALVO ATUAL: {dominio_alvo}"
         except:
             contexto = f"ALVO ATUAL: {dominio_alvo}"
-        
-        full_prompt = f"{contexto}\nENTRADA: {user_input}"
-        
+
+        # Monta o prompt completo com a instrução embutida
+        full_prompt = f"{NEXUS_INSTRUCTION}\n{contexto}\nENTRADA DO OPERADOR: {user_input}"
+
         try:
+            # Chamada limpa - sem system_instruction, sem response_mime_type
             response = client.models.generate_content(
                 model=self.model_id,
-                contents=full_prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=self.instruction,
-                    response_mime_type="application/json",
-                )
+                contents=full_prompt
             )
-            return json.loads(response.text)
+
+            # Limpa possíveis marcadores de markdown do texto
+            raw = response.text.strip()
+            raw = raw.replace('```json', '').replace('```', '').strip()
+            return json.loads(raw)
+
         except Exception as e:
             return {
                 "fase": "ERRO_SISTEMA",
-                "estrategia": f"Erro na camada Nexus v1: {str(e)}",
+                "estrategia": f"Erro Nexus: {str(e)}",
                 "comando": "N/A",
                 "ferramenta": "N/A",
-                "alerta": "Falha na Camada Neural Estável",
+                "alerta": "Falha na Camada Neural",
                 "error": True
             }
 
