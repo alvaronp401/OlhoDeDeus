@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { NexusLog, PentestRequest, ProxyStatus, ExecuteRequest } from '../types';
+import { NexusLog, ProxyStatus, TargetIntel, PayloadResult } from '../types';
 
 const API_URL = 'http://localhost:8000';
 
@@ -9,6 +9,7 @@ export const useNexus = (currentTarget?: string) => {
   const [vulnerabilities, setVulnerabilities] = useState<any[]>([]);
   const [loot, setLoot] = useState<any[]>([]);
   const [proxyStatus, setProxyStatus] = useState<ProxyStatus | null>(null);
+  const [targetIntel, setTargetIntel] = useState<TargetIntel | null>(null);
 
   const addLog = useCallback((log: NexusLog) => {
     setLogs((prev) => [...prev, log]);
@@ -17,12 +18,14 @@ export const useNexus = (currentTarget?: string) => {
   const refreshVault = useCallback(async () => {
     if (!currentTarget) return;
     try {
-      const [vRes, lRes] = await Promise.all([
+      const [vRes, lRes, iRes] = await Promise.all([
         fetch(`${API_URL}/vulnerabilities?target=${currentTarget}`),
-        fetch(`${API_URL}/loot?target=${currentTarget}`)
+        fetch(`${API_URL}/loot?target=${currentTarget}`),
+        fetch(`${API_URL}/target/intel?target=${currentTarget}`)
       ]);
       if (vRes.ok) setVulnerabilities(await vRes.json());
       if (lRes.ok) setLoot(await lRes.json());
+      if (iRes.ok) setTargetIntel(await iRes.json());
     } catch (err) {
       console.error("Erro ao atualizar cofre:", err);
     }
@@ -40,10 +43,24 @@ export const useNexus = (currentTarget?: string) => {
   useEffect(() => {
     refreshVault();
     fetchProxyStatus();
-    // Polling de anonimato a cada 60 segundos (menos agressivo para poupar recursos)
     const interval = setInterval(fetchProxyStatus, 60000);
     return () => clearInterval(interval);
   }, [currentTarget, refreshVault, fetchProxyStatus]);
+
+  const generatePayload = async (config: { type: 'reverse' | 'web', lhost?: string, lport?: string, shell_type?: string }) => {
+    if (!currentTarget) return null;
+    try {
+      const res = await fetch(`${API_URL}/payload/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: currentTarget, ...config })
+      });
+      if (res.ok) return await res.json() as PayloadResult;
+    } catch (err) {
+      console.error("Falha ao gerar payload:", err);
+    }
+    return null;
+  };
 
   const sendCommand = async (command: string, target: string) => {
     if (!command || isProcessing) return;
@@ -61,28 +78,6 @@ export const useNexus = (currentTarget?: string) => {
       if (data.discovery && data.discovery.type !== 'None') refreshVault();
     } catch (error) {
       addLog({ role: 'system', content: 'Erro na conexão neural.', timestamp: new Date().toLocaleTimeString(), error: true });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const sendImage = async (image: File, prompt: string, target: string) => {
-    if (isProcessing) return;
-    setIsProcessing(true);
-    addLog({ role: 'user', content: `[EVIDÊNCIA_VISUAL]: ${image.name} - ${prompt}`, timestamp: new Date().toLocaleTimeString() });
-
-    const formData = new FormData();
-    formData.append('image', image);
-    formData.append('prompt', prompt);
-    formData.append('target', target);
-
-    try {
-      const res = await fetch(`${API_URL}/ask/vision`, { method: 'POST', body: formData });
-      const data = await res.json();
-      addLog({ role: 'vision', ...data, timestamp: new Date().toLocaleTimeString() });
-      refreshVault();
-    } catch (error) {
-      addLog({ role: 'system', content: `>>> VISION_ERROR: ${error instanceof Error ? error.message : 'Falha'}`, timestamp: new Date().toLocaleTimeString(), error: true });
     } finally {
       setIsProcessing(false);
     }
@@ -110,7 +105,7 @@ export const useNexus = (currentTarget?: string) => {
         error: data.exit_code !== 0,
       });
       refreshVault();
-      fetchProxyStatus(); // Força atualização de IP após execução
+      fetchProxyStatus();
     } catch (error) {
       addLog({ role: 'system', content: 'Falha na execução física.', timestamp: new Date().toLocaleTimeString(), error: true });
     } finally {
@@ -118,5 +113,6 @@ export const useNexus = (currentTarget?: string) => {
     }
   };
 
-  return { logs, isProcessing, vulnerabilities, loot, proxyStatus, sendCommand, sendImage, executeCommand, refreshVault };
+  return { logs, isProcessing, vulnerabilities, loot, proxyStatus, targetIntel, sendCommand, executeCommand, generatePayload, refreshVault };
 };
+export default useNexus;

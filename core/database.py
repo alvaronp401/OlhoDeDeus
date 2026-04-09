@@ -17,6 +17,9 @@ def init_db():
         domain TEXT UNIQUE NOT NULL,
         ip_address TEXT,
         status TEXT DEFAULT 'RECON',
+        os_family TEXT, -- Windows, Linux, Darwin
+        os_version TEXT,
+        tech_stack TEXT, -- PHP, ASP.NET, Java, etc.
         last_scan DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -88,6 +91,28 @@ class DatabaseManager:
             cursor.execute("INSERT INTO targets (domain) VALUES (?)", (domain,))
             conn.commit()
             return cursor.lastrowid
+        finally:
+            conn.close()
+
+    def update_target_intel(self, domain, os_family=None, os_version=None, tech_stack=None):
+        target_id = self.get_or_create_target(domain)
+        conn = self.get_connection()
+        try:
+            cursor = conn.cursor()
+            if os_family: cursor.execute("UPDATE targets SET os_family = ? WHERE id = ?", (os_family, target_id))
+            if os_version: cursor.execute("UPDATE targets SET os_version = ? WHERE id = ?", (os_version, target_id))
+            if tech_stack: cursor.execute("UPDATE targets SET tech_stack = ? WHERE id = ?", (tech_stack, target_id))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_target_intel(self, domain):
+        conn = self.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT os_family, os_version, tech_stack FROM targets WHERE domain = ?", (domain,))
+            row = cursor.fetchone()
+            return dict(row) if row else {"os_family": "Unknown", "os_version": "N/A", "tech_stack": "N/A"}
         finally:
             conn.close()
 

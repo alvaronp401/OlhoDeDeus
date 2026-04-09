@@ -24,6 +24,19 @@ export interface ProxyStatus {
   provider: string;
 }
 
+export interface TargetIntel {
+  os_family: string;
+  os_version: string;
+  tech_stack: string;
+}
+
+export interface PayloadResult {
+  target: string;
+  os: string;
+  tech: string;
+  payload: string;
+}
+
 export interface PentestRequest {
   command: string;
   target: string;

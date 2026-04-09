@@ -7,6 +7,7 @@ import { AssetTree } from '@/components/layout/AssetTree';
 import { TerminalContainer } from '@/components/dashboard/TerminalContainer';
 import { CommandInput } from '@/components/dashboard/CommandInput';
 import { VaultPanel } from '@/components/layout/VaultPanel';
+import { ArsenalPanel } from '@/components/dashboard/ArsenalPanel';
 import { useNexus } from '@/hooks/useNexus';
 
 export default function CyberpunkDashboard() {
@@ -18,9 +19,11 @@ export default function CyberpunkDashboard() {
     vulnerabilities, 
     loot, 
     proxyStatus,
+    targetIntel,
     sendCommand, 
     sendImage,
-    executeCommand 
+    executeCommand,
+    generatePayload
   } = useNexus(target);
 
   // Extrai a fase atual baseada no último log do Nexus
@@ -71,10 +74,10 @@ export default function CyberpunkDashboard() {
             />
           </section>
 
-          <VaultPanel 
-            vulnerabilities={vulnerabilities} 
-            loot={loot} 
-          />
+          <div className="flex flex-col gap-4">
+            <VaultPanel vulnerabilities={vulnerabilities} loot={loot} />
+            <ArsenalPanel intel={targetIntel} onGenerate={generatePayload} />
+          </div>
 
         </div>
 
@@ -84,6 +87,8 @@ export default function CyberpunkDashboard() {
             NEURAL_LINK: ACTIVE 
             <span className="text-emerald-500">|</span> 
             ADAPTIVE_PROXY: {proxyStatus?.status === 'PROTECTED' ? 'ENABLED' : 'DANGER'}
+            <span className="text-emerald-500">|</span> 
+            OS: {targetIntel?.os_family || 'SCANNING'}
           </span>
           <span>System_Region: South_America_East</span>
         </footer>

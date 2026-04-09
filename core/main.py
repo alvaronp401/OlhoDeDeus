@@ -88,6 +88,21 @@ class Nexus:
         
         result = executar_comando_kali(comando, dominio_alvo, usar_proxy)
         db.log_execution(dominio_alvo, comando, result.get("stdout", ""), result.get("exit_code", -1))
+        
+        # Inteligência Pós-Execução: Tenta identificar SO/Tech se houver output
+        if result.get("stdout"):
+            self.identificar_infraestrutura(dominio_alvo, result["stdout"])
+            
         return result
+
+    def identificar_infraestrutura(self, target, context):
+        """Extrai SO e Tech Stack do contexto de execução via IA."""
+        if len(context) < 50: return
+        prompt = f"Analise este output de ferramenta de segurança e identifique o Sistema Operacional (Windows/Linux) e a Stack Tecnológica (PHP/ASP/Java/Python/Node) do alvo {target}. Responda APENAS um JSON: {{\"os_family\": \"...\", \"tech_stack\": \"...\"}}. Output: {context[:2000]}"
+        try:
+            res = client.models.generate_content(model="gemini-2.0-flash", contents=prompt).text
+            data = json.loads(res.strip().replace('```json', '').replace('```', '').strip())
+            db.update_target_intel(target, os_family=data.get("os_family"), tech_stack=data.get("tech_stack"))
+        except: pass
 
 nexus = Nexus()
