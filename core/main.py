@@ -6,151 +6,119 @@ from google import genai
 from google.genai import types
 import chromadb
 from dotenv import load_dotenv
+from .tools.executor import executar_comando_kali
+from .database import db
 
 load_dotenv()
 
-# Cliente sem forçar versão de API
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
+# ChromaDB para memória semântica
 chroma_client = chromadb.PersistentClient(path="./memory/chroma_db")
 collection = chroma_client.get_or_create_collection(name="nexus_memory")
 
 NEXUS_INSTRUCTION = """
-Você é o NEXUS, o motor do 'Olho de Deus'.
-Sua metodologia é baseada no PTES (Penetration Testing Execution Standard).
+Você é o NEXUS, o motor de pentest autônomo 'Olho de Deus'.
+Sua metodologia é baseada no PTES.
 
-Responda APENAS com um JSON válido neste formato exato, sem markdown, sem explicações extras:
-{"fase": "RECON", "estrategia": "sua análise", "comando": "comando para kali", "ferramenta": "nome da ferramenta", "alerta": "alertas importantes"}
+REGRAS DE CONTRATO (JSON APENAS):
+{
+  "fase": "RECON | ENUM | VULN_DEV | EXPLOIT | POST",
+  "estrategia": "Análise técnica sênior",
+  "comando": "Comando real para o Kali",
+  "ferramenta": "Nome da ferramenta",
+  "alerta": "Algo crítico?",
+  "discovery": {
+    "type": "vulnerability | loot | None",
+    "title": "Título se houver descoberta",
+    "severity": "CRITICAL | HIGH | MEDIUM | LOW | INFO",
+    "details": "Detalhes da descoberta"
+  }
+}
 
-Os valores possíveis para fase são: RECON, ENUM, VULN_DEV, EXPLOIT, POST
+INSTRUÇÕES:
+1. Analise o HISTÓRICO e os RESULTADOS ANTERIORES para não se repetir.
+2. Seja incisivo: se encontrar uma porta aberta, sugira a enumeração dela imediatamente.
+3. Se o resultado de um comando mostrar uma flag, senha ou vulnerabilidade, preencha o campo 'discovery'.
 """
 
-
 def discover_models():
-    """Retorna lista ordenada de modelos funcionais para esta API key."""
-    print("\n" + "="*60)
-    print("[NEXUS_BOOT] Descobrindo modelos disponíveis...")
-    print("="*60)
-
+    """Descobre e valida modelos Gemini na conta."""
     available = []
     try:
         for m in client.models.list():
             available.append(m.name)
-    except Exception as e:
-        print(f"  [ERRO] Falha ao listar modelos: {e}")
+    except:
         return []
 
-    # Ordem de preferência: estáveis primeiro, depois experimentais
-    preferred = [
-        "gemini-2.0-flash",          # Estável, rápido, menos congestionado
-        "gemini-2.0-flash-lite",     # Ultra leve
-        "gemini-2.5-flash",          # Mais recente, pode estar congestionado
-        "gemini-2.5-pro",            # Pro mais recente
-        "gemini-2.0-flash-001",      # Versão específica
-        "gemini-flash-latest",       # Alias
-        "gemini-pro-latest",         # Alias
-    ]
-
-    # Filtra só os que existem na conta
-    valid = []
-    for candidate in preferred:
-        if any(candidate in name for name in available):
-            valid.append(candidate)
-            print(f"  [OK] {candidate}")
-        
-    if not valid:
-        # Fallback: pega qualquer modelo gemini que suporte geração
-        for name in available:
-            clean = name.replace("models/", "")
-            if "gemini" in clean and "embedding" not in clean and "image" not in clean:
-                valid.append(clean)
-
-    print(f"\n[NEXUS_BOOT] {len(valid)} modelos candidatos encontrados")
-    print("="*60 + "\n")
-    return valid
-
+    preferred = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-pro"]
+    valid = [p for p in preferred if any(p in name for name in available)]
+    return valid or [name.replace("models/", "") for name in available if "gemini" in name]
 
 class Nexus:
     def __init__(self):
         self.models = discover_models()
         self.model_id = self.models[0] if self.models else None
-        if self.model_id:
-            print(f"[NEXUS_CORE] Motor primário: {self.model_id}")
-            print(f"[NEXUS_CORE] Backup models: {self.models[1:3]}")
-        else:
-            print("[NEXUS_CORE] OFFLINE - Nenhum modelo disponível")
+        self.history = []
 
-    def _call_model(self, model_name, prompt, retries=2):
-        """Tenta chamar um modelo com retry automático para 503."""
-        for attempt in range(retries):
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=prompt
-                )
-                return response.text
-            except Exception as e:
-                error_str = str(e)
-                if "503" in error_str or "UNAVAILABLE" in error_str:
-                    if attempt < retries - 1:
-                        wait = (attempt + 1) * 2
-                        print(f"[NEXUS] {model_name} sobrecarregado, retry em {wait}s...")
-                        time.sleep(wait)
-                        continue
-                raise e
-        return None
+    def _get_persistent_context(self, domain):
+        """Busca dados reais do SQLite para o prompt."""
+        vulns = db.get_vulnerabilities(domain)
+        loot = db.get_loot(domain)
+        
+        context = f"\n🔍 ESTADO ATUAL DO ALVO ({domain}):\n"
+        if vulns:
+            context += "- Vulnerabilidades já mapeadas: " + ", ".join([v['title'] for v in vulns]) + "\n"
+        if loot:
+            context += f"- Loot capturado: {len(loot)} itens no cofre.\n"
+        
+        return context
 
     def pensar_e_agir(self, user_input, dominio_alvo="desconhecido"):
-        if not self.models:
-            return {
-                "fase": "ERRO_SISTEMA",
-                "estrategia": "Nenhum modelo de IA disponível.",
-                "comando": "N/A",
-                "ferramenta": "N/A",
-                "alerta": "Motor Neural Offline",
-                "error": True
-            }
+        if not self.model_id:
+            return {"fase": "ERRO", "estrategia": "IA Offline", "error": True}
 
-        # Consulta memória
+        # Contexto: SQLite (Dados Estruturados) + ChromaDB (Memória Semântica)
+        db_context = self._get_persistent_context(dominio_alvo)
         try:
             memoria = collection.query(query_texts=[user_input, dominio_alvo], n_results=3)
-            contexto = f"CONTEXTO DE MEMÓRIA: {memoria['documents']}\nALVO ATUAL: {dominio_alvo}"
+            sem_context = f"\n🧠 MEMÓRIA SEMÂNTICA: {memoria['documents']}"
         except:
-            contexto = f"ALVO ATUAL: {dominio_alvo}"
+            sem_context = ""
 
-        full_prompt = f"{NEXUS_INSTRUCTION}\n{contexto}\nENTRADA DO OPERADOR: {user_input}"
+        prompt = f"{NEXUS_INSTRUCTION}\n{db_context}{sem_context}\nALVO: {dominio_alvo}\nOPERADOR: {user_input}"
 
-        # Tenta cada modelo na lista até um funcionar
         for model_name in self.models:
             try:
-                raw = self._call_model(model_name, full_prompt)
-                if raw:
-                    raw = raw.strip().replace('```json', '').replace('```', '').strip()
-                    result = json.loads(raw)
-                    # Se funcionou com um modelo diferente do primário, promove ele
-                    if model_name != self.model_id:
-                        print(f"[NEXUS] Promovendo {model_name} para motor primário")
-                        self.model_id = model_name
-                    return result
-            except json.JSONDecodeError:
-                # Modelo respondeu mas não em JSON válido - tenta extrair
-                try:
-                    start = raw.index('{')
-                    end = raw.rindex('}') + 1
-                    return json.loads(raw[start:end])
-                except:
-                    pass
+                response = client.models.generate_content(model=model_name, contents=prompt)
+                raw = response.text.strip().replace('```json', '').replace('```', '').strip()
+                result = json.loads(raw)
+                
+                # Se a IA detectou algo no pensamento, salva no DB
+                disc = result.get("discovery")
+                if disc and disc.get("type") != "None":
+                    if disc["type"] == "vulnerability":
+                        db.save_vulnerability(dominio_alvo, disc["title"], disc["severity"], disc["details"])
+                    elif disc["type"] == "loot":
+                        db.save_loot(dominio_alvo, "GENERAL", disc["details"], origin="Nexus Thought")
+
+                return result
             except Exception as e:
-                print(f"[NEXUS] {model_name} falhou: {str(e)[:60]}, tentando próximo...")
+                print(f"[NEXUS] Erro com {model_name}: {str(e)}")
                 continue
 
-        return {
-            "fase": "ERRO_SISTEMA",
-            "estrategia": "Todos os modelos falharam. Tente novamente em alguns segundos.",
-            "comando": "N/A",
-            "ferramenta": "N/A",
-            "alerta": "Alta demanda nos servidores Google",
-            "error": True
-        }
+        return {"fase": "ERRO", "estrategia": "Falha geral dos modelos", "error": True}
+
+    def executar(self, comando, dominio_alvo, usar_proxy=True):
+        """Executa e persiste o log no SQLite."""
+        result = executar_comando_kali(comando, dominio_alvo, usar_proxy)
+        
+        # Loga no DB para persistência de longo prazo
+        db.log_execution(dominio_alvo, comando, result.get("stdout", ""), result.get("exit_code", -1))
+        
+        # Opcional: Analisar o output do scan para encontrar vulns automaticamente
+        # (Futura implementação: passar o output pro Gemini analisar se tem algo 'interessante')
+        
+        return result
 
 nexus = Nexus()

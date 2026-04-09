@@ -7,9 +7,10 @@ import { NexusLog } from '../../types';
 
 interface TerminalContainerProps {
   logs: NexusLog[];
+  onExecuteCommand?: (comando: string) => void;
 }
 
-export const TerminalContainer = ({ logs }: TerminalContainerProps) => {
+export const TerminalContainer = ({ logs, onExecuteCommand }: TerminalContainerProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,7 +36,11 @@ export const TerminalContainer = ({ logs }: TerminalContainerProps) => {
             </div>
           ) : (
             logs.map((log, i) => (
-              <LogEntry key={`${log.timestamp}-${i}`} log={log} />
+              <LogEntry 
+                key={`${log.timestamp}-${i}`} 
+                log={log} 
+                onExecuteCommand={onExecuteCommand}
+              />
             ))
           )}
         </AnimatePresence>
