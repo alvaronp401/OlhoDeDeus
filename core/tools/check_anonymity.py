@@ -1,47 +1,37 @@
 # core/tools/check_anonymity.py
 import subprocess
+import requests
 
-def verificar_anonimato():
-    """Verifica o IP real vs IP via proxychains4 para garantir anonimato."""
-    print("\n" + "="*60)
-    print("[NEXUS_SECURITY] Verificando integridade do anonimato...")
-    print("="*60)
-    
+def verificar_anonimato_fast():
+    """Versão otimizada para o Dashboard."""
     try:
-        # 1. Tenta pegar IP direto (se falhar, o sistema está blindado)
-        direct_ip = "BLOCK"
+        # Tenta pegar IP via Proxychains4
+        # Usamos timeout baixo para não travar a UI
         try:
-            direct_ip = subprocess.run(
-                ["curl", "-s", "--connect-timeout", "5", "https://ifconfig.me"], 
+            res = subprocess.run(
+                ["proxychains4", "-q", "curl", "-s", "--connect-timeout", "2", "https://ifconfig.me"], 
                 capture_output=True, text=True
-            ).stdout.strip()
+            )
+            proxy_ip = res.stdout.strip()
         except:
-            pass
-        
-        # 2. Tenta pegar IP via Proxychains4
-        proxy_ip = "FAILED"
-        try:
-            proxy_ip = subprocess.run(
-                ["proxychains4", "-q", "curl", "-s", "--connect-timeout", "10", "https://ifconfig.me"], 
-                capture_output=True, text=True
-            ).stdout.strip()
-        except Exception as e:
-            proxy_ip = f"ERROR: {str(e)}"
+            proxy_ip = "CONNECTION_ERROR"
 
-        print(f"  [DIRECT_IP] {direct_ip}")
-        print(f"  [PROXY_IP]  {proxy_ip}")
-        
-        status = "PROTECTED ✓" if proxy_ip != direct_ip and proxy_ip != "FAILED" else "UNSAFE ✗"
-        print(f"\n[STATUS] {status}")
-        print("="*60 + "\n")
+        # Pega IP direto (sem proxy) para comparar
+        try:
+            direct_ip = requests.get("https://ifconfig.me", timeout=2).text.strip()
+        except:
+            direct_ip = "HIDDEN"
+
+        is_safe = proxy_ip != direct_ip and proxy_ip != "CONNECTION_ERROR"
         
         return {
-            "direct": direct_ip,
-            "proxy": proxy_ip,
-            "status": status
+            "proxy_ip": proxy_ip,
+            "direct_ip": direct_ip,
+            "status": "PROTECTED" if is_safe else "UNSAFE",
+            "provider": "Tor Network" if is_safe else "Clearweb"
         }
     except Exception as e:
-        return {"error": str(e)}
+        return {"status": "ERROR", "message": str(e)}
 
 if __name__ == "__main__":
-    verificar_anonimato()
+    print(verificar_anonimato_fast())

@@ -114,7 +114,7 @@ export const LogEntry = ({ log, onExecuteCommand }: LogEntryProps) => {
           </div>
           <div className="border-l-2 border-emerald-500 bg-emerald-950/5 p-4 shadow-[0_0_15px_rgba(16,185,129,0.05)] group-hover:bg-emerald-950/10 transition-colors">
             <p className="text-sm text-emerald-100 leading-relaxed mb-4 font-mono antialiased">
-              {log.estrategia}
+              {log.estrategia || log.content || "Analisando vetores..."}
             </p>
             {log.comando && log.comando !== "N/A" && (
               <div className="bg-black/90 p-3 border border-emerald-900/30 group/cmd relative overflow-hidden">

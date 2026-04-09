@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { NexusLog, PentestRequest, ExecuteRequest } from '../types';
+import { NexusLog, PentestRequest, ProxyStatus, ExecuteRequest } from '../types';
 
 const API_URL = 'http://localhost:8000';
 
@@ -8,6 +8,7 @@ export const useNexus = (currentTarget?: string) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [vulnerabilities, setVulnerabilities] = useState<any[]>([]);
   const [loot, setLoot] = useState<any[]>([]);
+  const [proxyStatus, setProxyStatus] = useState<ProxyStatus | null>(null);
 
   const addLog = useCallback((log: NexusLog) => {
     setLogs((prev) => [...prev, log]);
@@ -27,9 +28,22 @@ export const useNexus = (currentTarget?: string) => {
     }
   }, [currentTarget]);
 
+  const fetchProxyStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/proxy-status`);
+      if (res.ok) setProxyStatus(await res.json());
+    } catch (err) {
+      setProxyStatus({ status: 'ERROR', proxy_ip: 'FAIL', direct_ip: 'FAIL', provider: 'Unknown' });
+    }
+  }, []);
+
   useEffect(() => {
     refreshVault();
-  }, [currentTarget, refreshVault]);
+    fetchProxyStatus();
+    // Polling de anonimato a cada 60 segundos (menos agressivo para poupar recursos)
+    const interval = setInterval(fetchProxyStatus, 60000);
+    return () => clearInterval(interval);
+  }, [currentTarget, refreshVault, fetchProxyStatus]);
 
   const sendCommand = async (command: string, target: string) => {
     if (!command || isProcessing) return;
@@ -40,7 +54,7 @@ export const useNexus = (currentTarget?: string) => {
       const res = await fetch(`${API_URL}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command, target } as PentestRequest),
+        body: JSON.stringify({ command, target }),
       });
       const data = await res.json();
       addLog({ role: 'nexus', ...data, timestamp: new Date().toLocaleTimeString() });
@@ -52,16 +66,10 @@ export const useNexus = (currentTarget?: string) => {
     }
   };
 
-  // NOVO: Envio de imagens para a Visão do NEXUS
   const sendImage = async (image: File, prompt: string, target: string) => {
     if (isProcessing) return;
     setIsProcessing(true);
-    
-    addLog({ 
-      role: 'user', 
-      content: `[EVIDÊNCIA_VISUAL]: ${image.name} - ${prompt}`, 
-      timestamp: new Date().toLocaleTimeString() 
-    });
+    addLog({ role: 'user', content: `[EVIDÊNCIA_VISUAL]: ${image.name} - ${prompt}`, timestamp: new Date().toLocaleTimeString() });
 
     const formData = new FormData();
     formData.append('image', image);
@@ -69,27 +77,12 @@ export const useNexus = (currentTarget?: string) => {
     formData.append('target', target);
 
     try {
-      const res = await fetch(`${API_URL}/ask/vision`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) throw new Error("Falha na análise de visão");
-
+      const res = await fetch(`${API_URL}/ask/vision`, { method: 'POST', body: formData });
       const data = await res.json();
-      addLog({ 
-        role: 'vision', 
-        ...data, 
-        timestamp: new Date().toLocaleTimeString() 
-      });
+      addLog({ role: 'vision', ...data, timestamp: new Date().toLocaleTimeString() });
       refreshVault();
     } catch (error) {
-      addLog({ 
-        role: 'system', 
-        content: `>>> VISION_ERROR: ${error instanceof Error ? error.message : 'Falha ao processar imagem'}`, 
-        timestamp: new Date().toLocaleTimeString(), 
-        error: true 
-      });
+      addLog({ role: 'system', content: `>>> VISION_ERROR: ${error instanceof Error ? error.message : 'Falha'}`, timestamp: new Date().toLocaleTimeString(), error: true });
     } finally {
       setIsProcessing(false);
     }
@@ -117,6 +110,7 @@ export const useNexus = (currentTarget?: string) => {
         error: data.exit_code !== 0,
       });
       refreshVault();
+      fetchProxyStatus(); // Força atualização de IP após execução
     } catch (error) {
       addLog({ role: 'system', content: 'Falha na execução física.', timestamp: new Date().toLocaleTimeString(), error: true });
     } finally {
@@ -124,5 +118,5 @@ export const useNexus = (currentTarget?: string) => {
     }
   };
 
-  return { logs, isProcessing, vulnerabilities, loot, sendCommand, sendImage, executeCommand, refreshVault };
+  return { logs, isProcessing, vulnerabilities, loot, proxyStatus, sendCommand, sendImage, executeCommand, refreshVault };
 };

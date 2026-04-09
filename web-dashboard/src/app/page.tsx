@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ScanlineOverlay } from '@/components/effects/ScanlineOverlay';
 import { Header } from '@/components/layout/Header';
 import { AssetTree } from '@/components/layout/AssetTree';
@@ -10,17 +10,24 @@ import { VaultPanel } from '@/components/layout/VaultPanel';
 import { useNexus } from '@/hooks/useNexus';
 
 export default function CyberpunkDashboard() {
-  const [target, setTarget] = useState('dev-pulse-front.light.com.br');
+  const [target, setTarget] = useState('movemind.ia.br');
   
   const { 
     logs, 
     isProcessing, 
     vulnerabilities, 
     loot, 
+    proxyStatus,
     sendCommand, 
     sendImage,
     executeCommand 
   } = useNexus(target);
+
+  // Extrai a fase atual baseada no último log do Nexus
+  const currentPhase = useMemo(() => {
+    const lastNexusLog = [...logs].reverse().find(l => l.role === 'nexus');
+    return lastNexusLog?.fase || 'RECON';
+  }, [logs]);
 
   const handleAsk = (command: string) => {
     sendCommand(command, target);
@@ -44,6 +51,8 @@ export default function CyberpunkDashboard() {
         <Header 
           target={target} 
           onTargetChange={setTarget} 
+          proxyStatus={proxyStatus}
+          currentPhase={currentPhase}
         />
 
         <div className="flex flex-1 gap-4 overflow-hidden">
@@ -74,7 +83,7 @@ export default function CyberpunkDashboard() {
           <span className="animate-pulse flex gap-2">
             NEURAL_LINK: ACTIVE 
             <span className="text-emerald-500">|</span> 
-            VISION_MODULE: ONLINE
+            ADAPTIVE_PROXY: {proxyStatus?.status === 'PROTECTED' ? 'ENABLED' : 'DANGER'}
           </span>
           <span>System_Region: South_America_East</span>
         </footer>

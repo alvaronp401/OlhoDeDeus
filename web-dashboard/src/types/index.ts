@@ -11,27 +11,17 @@ export interface NexusLog {
   stdout?: string;
   stderr?: string;
   exit_code?: number;
-  // Vision fields
   analise?: string;
   vetor?: string;
   sugestao?: string;
   ferramenta_detectada?: string;
 }
 
-export interface VisionResponse {
-  analise: string;
-  vetor: string;
-  sugestao: string;
-  ferramenta_detectada: string;
-}
-
-export interface NexusResponse {
-  fase: string;
-  estrategia: string;
-  comando: string;
-  ferramenta: string;
-  alerta: string;
-  discovery?: any;
+export interface ProxyStatus {
+  proxy_ip: string;
+  direct_ip: string;
+  status: 'PROTECTED' | 'UNSAFE' | 'ERROR';
+  provider: string;
 }
 
 export interface PentestRequest {
