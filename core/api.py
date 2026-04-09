@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# Libera o acesso para o seu Dashboard (CORS)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,15 +12,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class RequestData(BaseModel):
+class PentestRequest(BaseModel):
     command: str
+    target: str
 
 @app.post("/ask")
-async def ask(data: RequestData):
-    # O Nexus processa a pergunta usando Gemini + ChromaDB
-    res = nexus.pensar_e_agir(data.command)
-    return {"strategy": res}
+async def ask_nexus(data: PentestRequest):
+    # O Nexus agora recebe o alvo para manter o contexto na memória
+    resultado = nexus.pensar_e_agir(data.command, data.target)
+    return resultado
 
-@app.get("/")
-def status():
+@app.get("/status")
+def get_status():
     return {"status": "Nexus Core Online", "engine": "Gemini 1.5 Pro"}

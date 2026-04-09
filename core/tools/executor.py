@@ -1,33 +1,35 @@
-# core/tools/executor.py
 import subprocess
 import os
+from datetime import datetime
 
-def preparar_alvo(dominio):
-    """Cria a estrutura de pastas para o alvo se não existir"""
-    path = f"./targets/{dominio}"
-    folders = ['logs', 'vulnerabilities', 'scans', 'loot']
-    for folder in folders:
-        os.makedirs(f"{path}/{folder}", exist_ok=True)
-    return path
+def preparar_ambiente_alvo(dominio):
+    """Cria a estrutura de pastas para organização absurda"""
+    base_path = f"./targets/{dominio}"
+    subpastas = ["scans", "vulnerabilities", "loot", "logs"]
+    for pasta in subpastas:
+        os.makedirs(f"{base_path}/{pasta}", exist_ok=True)
+    return base_path
 
-def executar_kali(comando, dominio, anonimato=True):
-    path_alvo = preparar_alvo(dominio)
-    
-    # Prefixos para anonimato
-    prefixo = "proxychains4 -q " if anonimato else ""
-    
-    # Se for um comando que gera arquivo (ex: nmap -oN), direcionamos para a pasta do alvo
+def executar_comando_kali(comando, dominio, usar_proxy=True):
+    path_alvo = preparar_ambiente_alvo(dominio)
+    prefixo = "proxychains4 -q " if usar_proxy else ""
     comando_final = f"{prefixo}{comando}"
     
+    print(f"[NEXUS_EXEC] Alvo: {dominio} | Comando: {comando_final}")
+    
     try:
-        print(f"[NEXUS EXEC] Alvo: {dominio} | Comando: {comando_final}")
-        result = subprocess.run(comando_final, shell=True, capture_output=True, text=True)
+        processo = subprocess.run(comando_final, shell=True, capture_output=True, text=True)
         
-        # Salva o log da execução automaticamente
-        log_path = f"{path_alvo}/logs/exec_history.log"
-        with open(log_path, "a") as f:
-            f.write(f"\nCMD: {comando_final}\nOUT: {result.stdout}\nERR: {result.stderr}\n{'-'*20}")
+        # Salva o log histórico da execução
+        log_file = f"{path_alvo}/logs/history.log"
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(log_file, "a") as f:
+            f.write(f"\n[{timestamp}] CMD: {comando_final}\nOUT: {processo.stdout}\nERR: {processo.stderr}\n")
             
-        return {"stdout": result.stdout, "stderr": result.stderr, "path": path_alvo}
+        return {
+            "stdout": processo.stdout,
+            "stderr": processo.stderr,
+            "status": "success"
+        }
     except Exception as e:
-        return {"error": str(e)}
+        return {"status": "error", "message": str(e)}

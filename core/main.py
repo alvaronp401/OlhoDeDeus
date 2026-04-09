@@ -17,19 +17,21 @@ class Nexus:
     def __init__(self):
         # Iniciamos com instruções de sistema rigorosas
         self.instruction = """
-        Você é o NEXUS. Atue como um motor de Pentest Autônomo.
-        Sempre retorne sua resposta em formato JSON estrito com as chaves:
+        Você é o NEXUS, o motor do 'Olho de Deus'.
+        Sua metodologia é baseada no PTES (Penetration Testing Execution Standard).
+        
+        Sempre retorne um JSON estruturado:
         {
-          "estrategia": "descrição do plano",
-          "comando_sugerido": "comando real para o kali",
-          "ferramenta_utilizada": "nome da ferramenta",
-          "vulnerabilidade_suspeita": "nível e tipo",
-          "anonimato_requerido": true/false
+          "fase": "RECON | ENUM | VULN_DEV | EXPLOIT | POST",
+          "estrategia": "Sua análise detalhada",
+          "comando": "O comando exato para o Kali",
+          "ferramenta": "nmap, ffuf, sqlmap, katana...",
+          "alerta": "Algo crítico encontrado?"
         }
         """
         self.chat = model.start_chat(history=[])
 
-    def pensar_e_agir(self, user_input, dominio_alvo):
+    def pensar_e_agir(self, user_input, dominio_alvo="desconhecido"):
         # Consulta memória sobre o alvo ou tecnologias parecidas
         memoria = collection.query(query_texts=[user_input, dominio_alvo], n_results=3)
         
@@ -43,6 +45,13 @@ class Nexus:
         try:
             return json.loads(response.text.replace('```json', '').replace('```', ''))
         except:
-            return {"estrategia": response.text, "error": "Falha ao estruturar JSON"}
+            return {
+                "fase": "DESCONHECIDA",
+                "estrategia": response.text,
+                "comando": "N/A",
+                "ferramenta": "N/A",
+                "alerta": "Erro ao estruturar JSON",
+                "error": True
+            }
 
 nexus = Nexus()
