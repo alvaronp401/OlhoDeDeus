@@ -5,6 +5,7 @@ const API_URL = 'http://localhost:8000';
 
 export const useNexus = (currentTarget?: string) => {
   const [logs, setLogs] = useState<NexusLog[]>([]);
+  const [liveLogs, setLiveLogs] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [vulnerabilities, setVulnerabilities] = useState<any[]>([]);
   const [loot, setLoot] = useState<any[]>([]);
@@ -30,6 +31,25 @@ export const useNexus = (currentTarget?: string) => {
       console.error("Erro ao atualizar cofre:", err);
     }
   }, [currentTarget]);
+
+  // Polling de Live Logs
+  useEffect(() => {
+    if (!isProcessing) {
+        setLiveLogs('');
+        return;
+    }
+    const fetchLiveLogs = async () => {
+        try {
+            const res = await fetch(`${API_URL}/live-logs`);
+            if (res.ok) {
+                const data = await res.json();
+                setLiveLogs(data.logs);
+            }
+        } catch (err) { /* ignore */ }
+    };
+    const interval = setInterval(fetchLiveLogs, 1000);
+    return () => clearInterval(interval);
+  }, [isProcessing]);
 
   const fetchProxyStatus = useCallback(async () => {
     try {
@@ -97,7 +117,7 @@ export const useNexus = (currentTarget?: string) => {
       const data = await res.json();
       addLog({
         role: 'execution',
-        content: data.stdout || data.stderr || 'No output.',
+        content: data.stdout || data.stderr || 'Execution finished.',
         stdout: data.stdout,
         stderr: data.stderr,
         exit_code: data.exit_code,
@@ -113,6 +133,6 @@ export const useNexus = (currentTarget?: string) => {
     }
   };
 
-  return { logs, isProcessing, vulnerabilities, loot, proxyStatus, targetIntel, sendCommand, executeCommand, generatePayload, refreshVault };
+  return { logs, liveLogs, isProcessing, vulnerabilities, loot, proxyStatus, targetIntel, sendCommand, executeCommand, generatePayload, refreshVault };
 };
 export default useNexus;

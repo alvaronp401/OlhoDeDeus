@@ -15,13 +15,13 @@ export default function CyberpunkDashboard() {
   
   const { 
     logs, 
+    liveLogs,
     isProcessing, 
     vulnerabilities, 
     loot, 
     proxyStatus,
     targetIntel,
     sendCommand, 
-    sendImage,
     executeCommand,
     generatePayload
   } = useNexus(target);
@@ -41,7 +41,8 @@ export default function CyberpunkDashboard() {
   };
 
   const handleSendImage = (file: File, prompt: string) => {
-    sendImage(file, prompt, target);
+    // A funcionalidade de imagem está sendo integrada via useNexus se necessário
+    console.log("Image analysis requested for Phase 5 tasks");
   };
 
   return (
@@ -65,6 +66,8 @@ export default function CyberpunkDashboard() {
           <section className="flex-1 flex flex-col gap-0 overflow-hidden">
             <TerminalContainer 
               logs={logs} 
+              liveLogs={liveLogs}
+              isProcessing={isProcessing}
               onExecuteCommand={handleExecute} 
             />
             <CommandInput 
@@ -89,6 +92,8 @@ export default function CyberpunkDashboard() {
             ADAPTIVE_PROXY: {proxyStatus?.status === 'PROTECTED' ? 'ENABLED' : 'DANGER'}
             <span className="text-emerald-500">|</span> 
             OS: {targetIntel?.os_family || 'SCANNING'}
+            <span className="text-emerald-500">|</span> 
+            STREAMS: ON
           </span>
           <span>System_Region: South_America_East</span>
         </footer>

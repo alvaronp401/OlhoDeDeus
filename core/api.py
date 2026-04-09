@@ -1,10 +1,11 @@
 from fastapi import FastAPI, Query, File, UploadFile, Form
 from pydantic import BaseModel
-from .main import nexus
-from .database import db
-from .vision_engine import analisar_evidencia_visual
-from .tools.check_anonymity import verificar_anonimato_fast
-from .tools.payload_factory import gerar_reverse_shell, gerar_web_shell
+from core.main import nexus
+from core.database import db
+from core.vision_engine import analisar_evidencia_visual
+from core.tools.check_anonymity import verificar_anonimato_fast
+from core.tools.payload_factory import gerar_reverse_shell, gerar_web_shell
+from core.tools.executor import get_live_logs
 from fastapi.middleware.cors import CORSMiddleware
 import json
 
@@ -46,18 +47,20 @@ async def execute_command(data: dict):
 def get_proxy_status():
     return verificar_anonimato_fast()
 
+@app.get("/live-logs")
+def fetch_live_logs():
+    """Retorna o progresso em tempo real da execução atual."""
+    return {"logs": get_live_logs()}
+
 @app.get("/target/intel")
 def get_target_intel(target: str = Query(...)):
-    """Retorna inteligência de infra (SO/Stack) coletada."""
     return db.get_target_intel(target)
 
 @app.post("/payload/generate")
 def generate_payload(data: dict):
-    """Gera payloads sob medida baseados no SO/Tech do alvo."""
     target = data.get("target")
     intel = db.get_target_intel(target)
-    
-    p_type = data.get("type", "reverse") # reverse | web
+    p_type = data.get("type", "reverse")
     lhost = data.get("lhost", "127.0.0.1")
     lport = data.get("lport", "4444")
     
