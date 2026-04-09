@@ -8,7 +8,21 @@ from dotenv import load_dotenv
 load_dotenv()
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-pro')
+
+def initialize_model(model_name="gemini-1.5-flash"):
+    """Tenta inicializar o modelo, com fallback para o Flash se o Pro falhar."""
+    try:
+        print(f"[NEXUS_CORE] Tentando inicializar modelo: {model_name}")
+        return genai.GenerativeModel(model_name)
+    except Exception as e:
+        print(f"[NEXUS_CORE] Erro ao carregar {model_name}: {e}")
+        if model_name != "gemini-1.5-flash":
+            print("[NEXUS_CORE] Fazendo fallback para gemini-1.5-flash...")
+            return genai.GenerativeModel("gemini-1.5-flash")
+        raise e
+
+# Inicializamos o modelo (preferência agora é Flash pela velocidade e disponibilidade)
+model = initialize_model("gemini-1.5-flash")
 
 chroma_client = chromadb.PersistentClient(path="./memory/chroma_db")
 collection = chroma_client.get_or_create_collection(name="nexus_memory")
@@ -29,28 +43,36 @@ class Nexus:
           "alerta": "Algo crítico encontrado?"
         }
         """
-        self.chat = model.start_chat(history=[])
+        try:
+            self.chat = model.start_chat(history=[])
+        except Exception as e:
+            print(f"[NEXUS_CORE] Erro ao iniciar chat: {e}")
+            self.chat = None
 
     def pensar_e_agir(self, user_input, dominio_alvo="desconhecido"):
+        if not self.chat:
+            return {"error": "IA não inicializada corretamente. Verifique sua GEMINI_API_KEY."}
+
         # Consulta memória sobre o alvo ou tecnologias parecidas
-        memoria = collection.query(query_texts=[user_input, dominio_alvo], n_results=3)
-        
-        contexto = f"CONTEXTO DE MEMÓRIA: {memoria['documents']}\nALVO ATUAL: {dominio_alvo}"
+        try:
+            memoria = collection.query(query_texts=[user_input, dominio_alvo], n_results=3)
+            contexto = f"CONTEXTO DE MEMÓRIA: {memoria['documents']}\nALVO ATUAL: {dominio_alvo}"
+        except:
+            contexto = f"ALVO ATUAL: {dominio_alvo}"
         
         full_prompt = f"{self.instruction}\n{contexto}\nENTRADA: {user_input}"
         
-        response = self.chat.send_message(full_prompt)
-        
-        # Tenta parsear o JSON para garantir que o dashboard receba dados limpos
         try:
+            response = self.chat.send_message(full_prompt)
+            # Tenta parsear o JSON para garantir que o dashboard receba dados limpos
             return json.loads(response.text.replace('```json', '').replace('```', ''))
-        except:
+        except Exception as e:
             return {
-                "fase": "DESCONHECIDA",
-                "estrategia": response.text,
+                "fase": "ERRO_SISTEMA",
+                "estrategia": f"Erro na comunicação com a IA: {str(e)}",
                 "comando": "N/A",
                 "ferramenta": "N/A",
-                "alerta": "Erro ao estruturar JSON",
+                "alerta": "Falha Crítica no Nexus Core",
                 "error": True
             }
 
