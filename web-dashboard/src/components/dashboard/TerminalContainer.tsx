@@ -53,7 +53,7 @@ export const TerminalContainer = ({ logs, liveLogs, isProcessing, onExecuteComma
               ))}
               
               {/* LIVE LOG STREAMING AREA */}
-              {isProcessing && liveLogs && (
+              {isProcessing && (
                 <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -64,7 +64,7 @@ export const TerminalContainer = ({ logs, liveLogs, isProcessing, onExecuteComma
                     <span className="text-[8px] font-black uppercase text-emerald-800 tracking-widest">Buffer_Process_Output</span>
                   </div>
                   <pre className="text-[10px] font-mono text-emerald-400 bg-emerald-950/5 p-4 border-l-2 border-emerald-500/30 whitespace-pre-wrap leading-relaxed">
-                    {liveLogs}
+                    {liveLogs || 'Aguardando output do terminal...'}
                     <span className="inline-block w-1.5 h-3 bg-emerald-500 ml-1 animate-pulse" />
                   </pre>
                 </motion.div>

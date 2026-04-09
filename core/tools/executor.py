@@ -36,6 +36,7 @@ def executar_comando_kali(comando, dominio, usar_proxy=True, timeout=120):
     with open(LIVE_LOG_FILE, "w") as f:
         f.write(f"--- [START] {timestamp} Alvo: {dominio} ---\n")
         f.write(f"CMD> {comando_final}\n\n")
+        f.flush() # Força a escrita imediata para a UI captar
 
     try:
         # Popen permite que leiamos o output enquanto o processo roda
