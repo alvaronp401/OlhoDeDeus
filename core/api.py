@@ -1,11 +1,11 @@
 from fastapi import FastAPI, Query, File, UploadFile, Form
 from pydantic import BaseModel
-from core.main import nexus
-from core.database import db
-from core.vision_engine import analisar_evidencia_visual
-from core.tools.check_anonymity import verificar_anonimato_fast
-from core.tools.payload_factory import gerar_reverse_shell, gerar_web_shell
-from core.tools.executor import get_live_logs
+from .main import nexus
+from .database import db
+from .vision_engine import analisar_evidencia_visual
+from .tools.check_anonymity import verificar_anonimato_fast
+from .tools.payload_factory import gerar_reverse_shell, gerar_web_shell
+from .tools.executor import get_live_logs
 from fastapi.middleware.cors import CORSMiddleware
 import json
 
