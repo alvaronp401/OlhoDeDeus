@@ -24,12 +24,15 @@ async def ask_nexus(data: PentestRequest):
 
 @app.get("/status")
 def get_status():
-    return {"status": "Nexus Core Online", "engine": "Google GenAI SDK v1 (Stable)"}
+    return {
+        "status": "Nexus Core Online" if nexus.model_id else "Nexus Core OFFLINE",
+        "engine": nexus.model_id or "Nenhum modelo encontrado"
+    }
 
 @app.get("/debug/nexus")
 def debug_nexus():
     return {
         "active_model": nexus.model_id,
-        "api_version": "v1",
+        "mode": "auto-discovery",
         "health": "OK" if nexus.model_id else "FAILED"
     }
