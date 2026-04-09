@@ -1,13 +1,27 @@
 from fastapi import FastAPI, Query, File, UploadFile, Form
 from pydantic import BaseModel
-from .main import nexus
-from .database import db
-from .vision_engine import analisar_evidencia_visual
-from .tools.check_anonymity import verificar_anonimato_fast
-from .tools.payload_factory import gerar_reverse_shell, gerar_web_shell
-from .tools.executor import get_live_logs
 from fastapi.middleware.cors import CORSMiddleware
 import json
+import sys
+import os
+
+# Ajuste dinâmico de PATH para garantir compatibilidade Kali/Windows
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from .main import nexus
+    from .database import db
+    from .vision_engine import analisar_evidencia_visual
+    from .tools.check_anonymity import verificar_anonimato_fast
+    from .tools.payload_factory import gerar_reverse_shell, gerar_web_shell
+    from .tools.executor import get_live_logs
+except (ImportError, ModuleNotFoundError):
+    from main import nexus
+    from database import db
+    from vision_engine import analisar_evidencia_visual
+    from tools.check_anonymity import verificar_anonimato_fast
+    from tools.payload_factory import gerar_reverse_shell, gerar_web_shell
+    from tools.executor import get_live_logs
 
 app = FastAPI()
 
@@ -49,7 +63,6 @@ def get_proxy_status():
 
 @app.get("/live-logs")
 def fetch_live_logs():
-    """Retorna o progresso em tempo real da execução atual."""
     return {"logs": get_live_logs()}
 
 @app.get("/target/intel")
