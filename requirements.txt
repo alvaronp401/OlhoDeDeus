@@ -92,6 +92,7 @@ watchfiles==1.1.1
 websocket-client==1.9.0
 websockets==16.0
 zipp==3.23.0
-Pillow==10.2.0
-python-multipart==0.0.9
+Pillow>=11.0.0
+python-multipart>=0.0.9
+
 
