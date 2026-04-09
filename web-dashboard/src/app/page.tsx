@@ -12,13 +12,13 @@ import { useNexus } from '@/hooks/useNexus';
 export default function CyberpunkDashboard() {
   const [target, setTarget] = useState('dev-pulse-front.light.com.br');
   
-  // O hook agora retorna os dados persistentes do banco
   const { 
     logs, 
     isProcessing, 
     vulnerabilities, 
     loot, 
     sendCommand, 
+    sendImage,
     executeCommand 
   } = useNexus(target);
 
@@ -28,6 +28,10 @@ export default function CyberpunkDashboard() {
 
   const handleExecute = (command: string) => {
     executeCommand(command, target);
+  };
+
+  const handleSendImage = (file: File, prompt: string) => {
+    sendImage(file, prompt, target);
   };
 
   return (
@@ -53,11 +57,11 @@ export default function CyberpunkDashboard() {
             />
             <CommandInput 
               onExecute={handleAsk} 
+              onSendImage={handleSendImage}
               isProcessing={isProcessing} 
             />
           </section>
 
-          {/* O painel de cofres agora recebe dados REAIS do banco de dados */}
           <VaultPanel 
             vulnerabilities={vulnerabilities} 
             loot={loot} 
@@ -70,7 +74,7 @@ export default function CyberpunkDashboard() {
           <span className="animate-pulse flex gap-2">
             NEURAL_LINK: ACTIVE 
             <span className="text-emerald-500">|</span> 
-            DB_PERSISTENCE: CONNECTED
+            VISION_MODULE: ONLINE
           </span>
           <span>System_Region: South_America_East</span>
         </footer>

@@ -13,7 +13,6 @@ export const useNexus = (currentTarget?: string) => {
     setLogs((prev) => [...prev, log]);
   }, []);
 
-  // Busca dados reais do banco (Vulns e Loot)
   const refreshVault = useCallback(async () => {
     if (!currentTarget) return;
     try {
@@ -28,7 +27,6 @@ export const useNexus = (currentTarget?: string) => {
     }
   }, [currentTarget]);
 
-  // Atualiza automaticamente quando o alvo muda ou algo novo é encontrado
   useEffect(() => {
     refreshVault();
   }, [currentTarget, refreshVault]);
@@ -46,13 +44,52 @@ export const useNexus = (currentTarget?: string) => {
       });
       const data = await res.json();
       addLog({ role: 'nexus', ...data, timestamp: new Date().toLocaleTimeString() });
-      
-      // Se a IA encontrou algo no pensamento, atualiza o painel lateral
-      if (data.discovery && data.discovery.type !== 'None') {
-        refreshVault();
-      }
+      if (data.discovery && data.discovery.type !== 'None') refreshVault();
     } catch (error) {
       addLog({ role: 'system', content: 'Erro na conexão neural.', timestamp: new Date().toLocaleTimeString(), error: true });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // NOVO: Envio de imagens para a Visão do NEXUS
+  const sendImage = async (image: File, prompt: string, target: string) => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    
+    addLog({ 
+      role: 'user', 
+      content: `[EVIDÊNCIA_VISUAL]: ${image.name} - ${prompt}`, 
+      timestamp: new Date().toLocaleTimeString() 
+    });
+
+    const formData = new FormData();
+    formData.append('image', image);
+    formData.append('prompt', prompt);
+    formData.append('target', target);
+
+    try {
+      const res = await fetch(`${API_URL}/ask/vision`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Falha na análise de visão");
+
+      const data = await res.json();
+      addLog({ 
+        role: 'vision', 
+        ...data, 
+        timestamp: new Date().toLocaleTimeString() 
+      });
+      refreshVault();
+    } catch (error) {
+      addLog({ 
+        role: 'system', 
+        content: `>>> VISION_ERROR: ${error instanceof Error ? error.message : 'Falha ao processar imagem'}`, 
+        timestamp: new Date().toLocaleTimeString(), 
+        error: true 
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -67,7 +104,7 @@ export const useNexus = (currentTarget?: string) => {
       const res = await fetch(`${API_URL}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: comando, target, use_proxy: useProxy } as ExecuteRequest),
+        body: JSON.stringify({ command: comando, target, use_proxy: useProxy }),
       });
       const data = await res.json();
       addLog({
@@ -79,7 +116,7 @@ export const useNexus = (currentTarget?: string) => {
         timestamp: new Date().toLocaleTimeString(),
         error: data.exit_code !== 0,
       });
-      refreshVault(); // Atualiza após execução
+      refreshVault();
     } catch (error) {
       addLog({ role: 'system', content: 'Falha na execução física.', timestamp: new Date().toLocaleTimeString(), error: true });
     } finally {
@@ -87,5 +124,5 @@ export const useNexus = (currentTarget?: string) => {
     }
   };
 
-  return { logs, isProcessing, vulnerabilities, loot, sendCommand, executeCommand, refreshVault };
+  return { logs, isProcessing, vulnerabilities, loot, sendCommand, sendImage, executeCommand, refreshVault };
 };
